@@ -15,11 +15,11 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pyjulius.  If not, see <http://www.gnu.org/licenses/>.
-from exceptions import ConnectionError
-from models import Sentence
+from .exceptions import ConnectionError
+from .models import Sentence
 from pyjulius.exceptions import SendTimeoutError
 from xml.etree.ElementTree import XML, ParseError
-import Queue
+import queue as Queue
 import logging
 import re
 import select
@@ -28,6 +28,7 @@ import threading
 
 
 __all__ = ['CONNECTED', 'DISCONNECTED', 'Client']
+logging.basicConfig(filename='pyjulius.log', encoding='utf-8', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -80,24 +81,30 @@ class Client(threading.Thread):
 
     """
     def __init__(self, host='localhost', port=10500, encoding='utf-8', modelize=True):
+        self._stopevent = threading.Event(  )
+        self._sleepperiod = 1.0        
         super(Client, self).__init__()
         self.host = host
         self.port = port
         self.encoding = encoding
+        self.daemon = True
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.state = DISCONNECTED
-        self._stop = False
+        #self._stop = False #this trounces on threading.py _stop()
         self.results = Queue.Queue()
         self.modelize = modelize
 
     def stop(self):
         """Stop the thread"""
-        self._stop = True
+        logging.info(u'Stopping Thread...')
+        self.results.task_done()
+        logging.info(u'Thread Stopped...')
 
     def run(self):
         """Start listening to the server"""
-        logger.info(u'Started listening')
-        while not self._stop:
+        logger.info(u'Started listening...')
+        #while not self._stopevent.isSet():
+        while not self._is_stopped:
             xml = self._readxml()
 
             # Exit on invalid XML
@@ -118,7 +125,8 @@ class Client(threading.Thread):
             else:
                 logger.info(u'Unmodelized xml: %s' % xml)
                 self.results.put(xml)
-
+            #self._stopevent.wait(self._sleepperiod)
+            #self.results.join()
         logger.info(u'Stopped listening')
 
     def connect(self):
@@ -163,14 +171,14 @@ class Client(threading.Thread):
         line = ''
         while 1:
             readable, _, __ = select.select([self.sock], [], [], 0.5)
-            if self._stop:
+            if self._is_stopped:
                 break
             if not readable:
                 continue
             data = readable[0].recv(1)
-            if data == '\n':
+            if data == b'\n':
                 break
-            line += unicode(data, self.encoding)
+            line += data.decode(self.encoding, 'ignore')
         return line
 
     def _readblock(self):
@@ -181,7 +189,7 @@ class Client(threading.Thread):
 
         """
         block = ''
-        while not self._stop:
+        while not self._is_stopped:
             line = self._readline()
             if line == '.':
                 break

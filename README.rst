@@ -9,3 +9,12 @@ Python module to connect to a julius module server
 `Julius <http://julius.sourceforge.jp/en/>`_ is a speech recognition software
 
 * `Project page <https://github.com/Diaoul/pyjulius>`_
+
+Updates for Python3
+===================
+
+Updates/hacks have been made to make it work with Python 3.9
+
+Further testing needs to be done to ensure accuracy.
+
+Some debugging code may still be enabled.
